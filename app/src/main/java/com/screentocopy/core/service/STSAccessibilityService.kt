@@ -1,24 +1,48 @@
 package com.screentocopy.core.service
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.PixelFormat
+import android.graphics.drawable.BitmapDrawable
+import android.os.Build
 import android.util.Log
+import android.view.Display
+import android.view.Gravity
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import com.screentocopy.core.engine.ClipboardEngine
+import com.screentocopy.core.selection.SelectionEngineView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class STSAccessibilityService : AccessibilityService() {
 
+    companion object {
+        var instance: STSAccessibilityService? = null
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var watchdog: ServiceWatchdog
+    
+    // UI Bileşenleri
+    private lateinit var windowManager: WindowManager
+    private lateinit var clipboardEngine: ClipboardEngine
+    private var overlayView: SelectionEngineView? = null
 
     // State buffer - Olayları geçici tuttuğumuz yer
     private val eventBuffer = mutableListOf<AccessibilityEvent>()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        instance = this
         Log.i("STSService", "Accessibility Service Connected")
+        
+        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        clipboardEngine = ClipboardEngine(this)
 
         watchdog = ServiceWatchdog(
             context = this,
@@ -113,12 +137,82 @@ class STSAccessibilityService : AccessibilityService() {
         // Fallback modundan çıkış
     }
 
-    private fun triggerMediaProjectionFallback() {
-        // Zombi modunda asıl kurtarıcı:
-        // Kullanıcı "Circle to Search" yapmak istediğinde Accessibility cevap vermezse,
-        // direkt MediaProjection activity'sini tetikle.
-        // val intent = Intent(this, MediaProjectionActivity::class.java)
-        // intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        // startActivity(intent)
+    private fun triggerMediaProjectionFallback() {}
+
+    /**
+     * 🚀 Gerçek "Circle to Search" deneyimi (Ekran Kaydı izni istemez!)
+     * MainActivity'den (veya asistan tetiklendiğinde) çağrılır.
+     */
+    fun triggerScreenshot() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : TakeScreenshotCallback {
+                override fun onSuccess(screenshot: ScreenshotResult) {
+                    val hwBitmap = Bitmap.wrapHardwareBuffer(screenshot.hardwareBuffer, screenshot.colorSpace)
+                    val swBitmap = hwBitmap?.copy(Bitmap.Config.ARGB_8888, false)
+                    screenshot.hardwareBuffer.close()
+                    
+                    if (swBitmap != null) {
+                        showOverlay(swBitmap)
+                    }
+                }
+
+                override fun onFailure(errorCode: Int) {
+                    Log.e("STSService", "Screenshot failed: $errorCode")
+                }
+            })
+        }
+    }
+
+    private fun showOverlay(frozenBitmap: Bitmap) {
+        if (overlayView != null) return
+
+        overlayView = SelectionEngineView(this)
+        overlayView?.background = BitmapDrawable(resources, frozenBitmap)
+        
+        overlayView?.onSelectionComplete = { rect ->
+            try {
+                val safeRect = android.graphics.Rect(
+                    rect.left.coerceAtLeast(0),
+                    rect.top.coerceAtLeast(0),
+                    rect.right.coerceAtMost(frozenBitmap.width),
+                    rect.bottom.coerceAtMost(frozenBitmap.height)
+                )
+                if (safeRect.width() > 0 && safeRect.height() > 0) {
+                    val cropped = Bitmap.createBitmap(frozenBitmap, safeRect.left, safeRect.top, safeRect.width(), safeRect.height())
+                    scope.launch {
+                        clipboardEngine.dispatchSmart(null, cropped)
+                        hideOverlay()
+                    }
+                } else hideOverlay()
+            } catch (e: Exception) {
+                hideOverlay()
+            }
+        }
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        )
+        params.gravity = Gravity.TOP or Gravity.START
+        windowManager.addView(overlayView, params)
+    }
+
+    private fun hideOverlay() {
+        overlayView?.let {
+            windowManager.removeView(it)
+            overlayView = null
+        }
+    }
+
+    override fun onUnbind(intent: Intent?): Boolean {
+        instance = null
+        return super.onUnbind(intent)
     }
 }
