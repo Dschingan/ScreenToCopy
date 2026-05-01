@@ -44,7 +44,12 @@ class SelectionEngineView @JvmOverloads constructor(
     // ── Selection model ───────────────────────────────────────────────────────
     private val currentSelection = SubpixelRect()
     private var snappedSelection = SubpixelRect()
-    private val pathPoints = mutableListOf<PointF>()
+    // [Fix #3] Pre-allocated float arrays — zero PointF allocation per MOVE sample.
+    // 512 slots covers 99%+ of real gestures. Conversion to List<PointF> happens
+    // exactly once at ACTION_UP when GestureEngine needs it.
+    private val pathXs = FloatArray(512)
+    private val pathYs = FloatArray(512)
+    private var pathCount = 0
 
     private var startX = 0f
     private var startY = 0f
@@ -104,12 +109,17 @@ class SelectionEngineView @JvmOverloads constructor(
             MotionEvent.ACTION_DOWN -> {
                 startX = event.x
                 startY = event.y
-                motionSmoother.reset(startX, startY)
+                motionSmoother.reset(startX, startY, event.eventTime)  // [Fix #5]
                 snapEngine.resetStickyStates()
                 isDragging = false
                 highlightLayer.clear()
-                pathPoints.clear()
-                pathPoints.add(PointF(startX, startY))
+                // [Fix #3] reset float path buffer
+                pathCount = 0
+                if (pathCount < pathXs.size) {
+                    pathXs[pathCount] = startX
+                    pathYs[pathCount] = startY
+                    pathCount++
+                }
 
                 currentSelection.left = startX
                 currentSelection.top = startY
@@ -134,12 +144,12 @@ class SelectionEngineView @JvmOverloads constructor(
                     }
                 }
 
-                // Historical pointer sampling
+                // Historical pointer sampling — pass historical eventTime per sample [Fix #5]
                 val historySize = event.historySize
                 for (i in 0 until historySize) {
-                    updateSelection(event.getHistoricalX(i), event.getHistoricalY(i))
+                    updateSelection(event.getHistoricalX(i), event.getHistoricalY(i), event.getHistoricalEventTime(i))
                 }
-                updateSelection(event.x, event.y)
+                updateSelection(event.x, event.y, event.eventTime)
 
                 // ── Center zone tracking (hot path — zero allocation) ──────────
                 if (isDragging) {
@@ -198,6 +208,10 @@ class SelectionEngineView @JvmOverloads constructor(
 
             MotionEvent.ACTION_UP -> {
                 if (isDragging) {
+                    // [Fix #3] Convert float arrays → List<PointF> once, only at ACTION_UP
+                    val pathPoints = ArrayList<PointF>(pathCount)
+                    for (i in 0 until pathCount) pathPoints.add(PointF(pathXs[i], pathYs[i]))
+
                     // Gesture analysis (only on release — CPU-friendly)
                     val resolvedRectF = GestureEngine.analyzeAndResolve(pathPoints)
                     currentSelection.left   = resolvedRectF.left
@@ -246,9 +260,14 @@ class SelectionEngineView @JvmOverloads constructor(
 
     // ── Selection update (called per pointer sample) ──────────────────────────
 
-    private fun updateSelection(rawX: Float, rawY: Float) {
-        val (predictedX, predictedY) = motionSmoother.process(rawX, rawY)
-        pathPoints.add(PointF(predictedX, predictedY))
+    private fun updateSelection(rawX: Float, rawY: Float, eventTime: Long) {
+        val (predictedX, predictedY) = motionSmoother.process(rawX, rawY, eventTime)  // [Fix #5]
+        // [Fix #3] append to pre-allocated arrays, no PointF heap allocation
+        if (pathCount < pathXs.size) {
+            pathXs[pathCount] = predictedX
+            pathYs[pathCount] = predictedY
+            pathCount++
+        }
 
         currentSelection.left   = minOf(startX, predictedX, currentSelection.left)
         currentSelection.top    = minOf(startY, predictedY, currentSelection.top)

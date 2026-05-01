@@ -29,7 +29,7 @@ class DebugOverlay @JvmOverloads constructor(
         setShadowLayer(2f, 1f, 1f, Color.BLACK)
     }
 
-    private val stringBuilder = StringBuilder(128)
+    // stringBuilder removed — onDraw draws each line directly (Fix #8)
 
     init {
         // Sadece debug modunda görünür yap (StsLogger isDebugBuild flag'ine bağlı)
@@ -51,24 +51,14 @@ class DebugOverlay @JvmOverloads constructor(
             AutoRecoveryEngine.HealthState.CRITICAL -> Color.RED
         }
 
-        // Zero Allocation String Build
-        stringBuilder.clear()
-        stringBuilder.append("MODE: ").append(mode).append("\n")
-        stringBuilder.append("OCR: ").append(ocrTime).append("ms\n")
-        stringBuilder.append("DROP: ").append(String.format("%.1f%%", dropRate))
-
-        // Draw background box
-        val lines = stringBuilder.split("\n")
-        var yPos = 50f
-        
-        // Basit arkaplan
+        // [Fix #8] Draw lines directly — no split() → no List<String> allocation per frame
         canvas.drawRect(10f, 10f, 350f, 150f, bgPaint)
-
-        // Metni yazdır
-        for (line in lines) {
-            canvas.drawText(line, 20f, yPos, textPaint)
-            yPos += textPaint.textSize + 8f
-        }
+        var yPos = 50f
+        canvas.drawText("MODE: $mode", 20f, yPos, textPaint)
+        yPos += textPaint.textSize + 8f
+        canvas.drawText("OCR:  ${ocrTime}ms", 20f, yPos, textPaint)
+        yPos += textPaint.textSize + 8f
+        canvas.drawText("DROP: ${(dropRate * 10).toInt() / 10f}%", 20f, yPos, textPaint)
     }
 
     fun updateMetrics() {

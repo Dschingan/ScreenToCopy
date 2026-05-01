@@ -12,19 +12,19 @@ class MotionSmoother {
     private var lastTime = 0L
     var latestVelocity = 0f
 
-    fun reset(x: Float, y: Float) {
+    fun reset(x: Float, y: Float, eventTime: Long) {
         lastX = x
         lastY = y
         latestVelocity = 0f
-        lastTime = System.currentTimeMillis()
+        lastTime = eventTime  // [Fix #5] use kernel-provided eventTime, no syscall
     }
 
     /**
      * @return Pair(PredictedX, PredictedY)
      */
-    fun process(x: Float, y: Float): Pair<Float, Float> {
-        val currentTime = System.currentTimeMillis()
-        val dt = (currentTime - lastTime).coerceAtLeast(1) // 0'a bölme hatasını önle
+    fun process(x: Float, y: Float, eventTime: Long): Pair<Float, Float> {
+        val currentTime = eventTime   // [Fix #5] free from MotionEvent, no syscall
+        val dt = (currentTime - lastTime).coerceAtLeast(1)
         lastTime = currentTime
 
         val dx = x - lastX

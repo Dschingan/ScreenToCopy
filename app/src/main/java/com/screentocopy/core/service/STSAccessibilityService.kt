@@ -25,7 +25,8 @@ class STSAccessibilityService : AccessibilityService() {
         var instance: STSAccessibilityService? = null
     }
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val job = SupervisorJob()
+    private val scope = CoroutineScope(job + Dispatchers.Main)
     private lateinit var watchdog: ServiceWatchdog
     
     // UI Bileşenleri
@@ -222,6 +223,7 @@ class STSAccessibilityService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         instance = null
+        job.cancel()   // [Fix #2] stop watchdog loop + all child coroutines
         return super.onUnbind(intent)
     }
 }

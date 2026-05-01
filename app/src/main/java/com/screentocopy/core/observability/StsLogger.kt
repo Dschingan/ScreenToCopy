@@ -22,15 +22,15 @@ object StsLogger {
     fun d(message: String) {
         if (isDebugBuild) {
             Log.d(TAG, message)
+            addToHistory("DEBUG: $message")  // [Fix #7] no-op in release
         }
-        addToHistory("DEBUG: $message")
     }
 
     fun e(message: String, throwable: Throwable? = null) {
         if (isDebugBuild) {
             Log.e(TAG, message, throwable)
+            addToHistory("ERROR: $message")  // [Fix #7] no-op in release
         }
-        addToHistory("ERROR: $message")
     }
 
     private fun addToHistory(msg: String) {

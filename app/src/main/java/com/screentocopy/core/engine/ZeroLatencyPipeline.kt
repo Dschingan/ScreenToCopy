@@ -90,15 +90,15 @@ class ZeroLatencyPipeline(
                 MetricsCollector.recordFrameMetrics(captureTime, ocrTime, totalTime, ocrResult.text.isNotEmpty())
                 AutoRecoveryEngine.analyzeAndHeal()
 
-                // 6. Visual Feedback & Clipboard Dispatch
+                // 6. Visual Feedback — fire immediately, don't wait for clipboard I/O [Fix #6]
                 withContext(kotlinx.coroutines.Dispatchers.Main) {
                     if (ocrResult.boundingBoxes.isNotEmpty()) {
                         onHighlightReady(ocrResult)
                     }
-                    
-                    // Clipboard Engine akıllı yönlendirme yapar
-                    clipboardEngine.dispatchSmart(ocrResult.text, extractedBitmap)
                 }
+
+                // Clipboard dispatch runs independently on IO — does not block highlights [Fix #6]
+                clipboardEngine.dispatchSmart(ocrResult.text, extractedBitmap)
 
             } finally {
                 // 🔥 4. Lifetime Yönetimi (EN KRİTİK BUG BURADA ÇÖZÜLDÜ)

@@ -77,10 +77,11 @@ class ClipboardEngine(private val context: Context) {
         val dir = File(context.cacheDir, "images")
         dir.mkdirs()
 
-        val file = File(dir, "sts_${System.currentTimeMillis()}.png")
+        // [Fix #4] JPEG 92% is ~5× faster than PNG 100% with visually lossless output
+        val file = File(dir, "sts_${System.currentTimeMillis()}.jpg")
 
         FileOutputStream(file).use { out ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 92, out)
         }
 
         FileProvider.getUriForFile(

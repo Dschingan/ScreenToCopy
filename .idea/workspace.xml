@@ -9,19 +9,19 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="377d00e4-b5dd-423e-9556-05bc2faf96b6" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/deploymentTargetSelector.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/deploymentTargetSelector.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/deviceManager.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
+    <list default="true" id="377d00e4-b5dd-423e-9556-05bc2faf96b6" name="Changes" comment="New Feature - Photo Editor">
       <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/action/EditIntentExecutor.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/action/EditIntentExecutor.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/engine/ClipboardEngine.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/engine/ClipboardEngine.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/engine/ZeroLatencyPipeline.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/engine/ZeroLatencyPipeline.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/observability/DebugOverlay.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/observability/DebugOverlay.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/observability/StsLogger.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/observability/StsLogger.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/selection/MotionSmoother.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/selection/MotionSmoother.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/selection/SelectionEngineView.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/selection/SelectionEngineView.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/selection/SubpixelRect.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/selection/SubpixelRect.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/selection/SpatialGridIndex.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/selection/SpatialGridIndex.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/service/OverlayService.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/service/OverlayService.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/service/STSAccessibilityService.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/service/STSAccessibilityService.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/service/ServiceWatchdog.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/service/ServiceWatchdog.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -77,24 +77,32 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Android App.app.executor": "Run",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.cidr.known.project.marker": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.readMode.enableVisualFormatting": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "cf.first.check.clang-format": "false",
-    "cidr.known.project.marker": "true",
-    "dart.analysis.tool.window.visible": "false",
-    "git-widget-placeholder": "master",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "C:/Users/Cengo/Desktop/ScreenToCopy",
-    "show.migrate.to.gradle.popup": "false"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Android App.app.executor&quot;: &quot;Run&quot;,
+    &quot;ApkExportedModule&quot;: &quot;ScreenToCopy.app&quot;,
+    &quot;ExportApk.ApkPathForScreenToCopy.app&quot;: &quot;C:\\Users\\Cengo\\Desktop\\ScreenToCopy\\app&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;dart.analysis.tool.window.visible&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Cengo/Desktop/ScreenToCopy&quot;,
+    &quot;show.migrate.to.gradle.popup&quot;: &quot;false&quot;
+  },
+  &quot;keyToStringList&quot;: {
+    &quot;ExportApk.BuildVariants&quot;: [
+      &quot;release&quot;
+    ]
   }
-}]]></component>
+}</component>
   <component name="RunManager">
     <configuration name="app" type="AndroidRunConfigurationType" factoryName="Android App" activateToolWindowBeforeRun="false">
       <module name="ScreenToCopy.app" />
@@ -177,6 +185,15 @@
       <option name="presentableId" value="Default" />
       <updated>1777148908500</updated>
     </task>
+    <task id="LOCAL-00001" summary="New Feature - Photo Editor">
+      <option name="closed" value="true" />
+      <created>1777637958885</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1777637958885</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -189,5 +206,9 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="New Feature - Photo Editor" />
+    <option name="LAST_COMMIT_MESSAGE" value="New Feature - Photo Editor" />
   </component>
 </project>

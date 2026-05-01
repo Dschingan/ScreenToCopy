@@ -28,6 +28,7 @@ import com.screentocopy.core.observability.StsLogger
 import com.screentocopy.core.selection.SelectionEngineView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -59,7 +60,8 @@ class OverlayService : Service() {
     private var mediaProjection: MediaProjection? = null
     private var frozenBitmap: Bitmap? = null
 
-    private val scope = CoroutineScope(Dispatchers.Main)
+    private val job = SupervisorJob()
+    private val scope = CoroutineScope(job + Dispatchers.Main)
     private lateinit var clipboardEngine: ClipboardEngine
     private lateinit var editExecutor: EditIntentExecutor
     private lateinit var watchdog: ServiceWatchdog
@@ -282,6 +284,8 @@ class OverlayService : Service() {
                 raw.copyPixelsFromBuffer(buffer)
 
                 val cropped = Bitmap.createBitmap(raw, 0, 0, metrics.widthPixels, metrics.heightPixels)
+                if (cropped !== raw) raw.recycle()   // [Fix #1] release ~10 MB intermediate bitmap
+                frozenBitmap?.recycle()              // [Fix #1b] release previous frozen bitmap
                 frozenBitmap = cropped
 
                 Handler(Looper.getMainLooper()).post {
@@ -321,6 +325,9 @@ class OverlayService : Service() {
 
     override fun onDestroy() {
         hideOverlay()
+        frozenBitmap?.recycle()   // [Fix #1b] release frozen bitmap on service death
+        frozenBitmap = null
+        job.cancel()              // [Fix #2] stop watchdog loop + all child coroutines
         super.onDestroy()
     }
 

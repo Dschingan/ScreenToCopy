@@ -7,8 +7,11 @@ import android.graphics.RectF
  * O(n) tarama problemini yok edip, O(1)'e yakın hizalama performansı sunar.
  */
 class SpatialGridIndex(private val cellSize: Int = 100) {
-    
-    private val grid = HashMap<Pair<Int, Int>, MutableList<RectF>>()
+
+    // [Fix #9] Long key avoids Pair allocation + Integer autoboxing per lookup
+    private val grid = HashMap<Long, MutableList<RectF>>()
+
+    private fun key(x: Int, y: Int): Long = (x.toLong() shl 32) or (y.toLong() and 0xFFFFFFFFL)
 
     fun clear() {
         grid.clear()
@@ -22,7 +25,7 @@ class SpatialGridIndex(private val cellSize: Int = 100) {
 
         for (x in startX..endX) {
             for (y in startY..endY) {
-                grid.getOrPut(x to y) { mutableListOf() }.add(rect)
+                grid.getOrPut(key(x, y)) { mutableListOf() }.add(rect)
             }
         }
     }
@@ -37,7 +40,7 @@ class SpatialGridIndex(private val cellSize: Int = 100) {
 
         for (x in startX..endX) {
             for (y in startY..endY) {
-                grid[x to y]?.let { results.addAll(it) }
+                grid[key(x, y)]?.let { results.addAll(it) }
             }
         }
 

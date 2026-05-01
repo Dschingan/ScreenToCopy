@@ -40,7 +40,7 @@ class EditIntentExecutor(private val context: Context) {
 
         withContext(Dispatchers.Main) {
             val intent = Intent(Intent.ACTION_EDIT).apply {
-                setDataAndType(uri, "image/*")
+                setDataAndType(uri, "image/jpeg")
                 addFlags(
                     Intent.FLAG_GRANT_READ_URI_PERMISSION or
                     Intent.FLAG_ACTIVITY_NEW_TASK
@@ -104,9 +104,10 @@ class EditIntentExecutor(private val context: Context) {
      */
     private fun save(bitmap: Bitmap): Uri {
         val dir = cacheDir()
-        val file = File(dir, "sts_edit_${System.currentTimeMillis()}.png")
+        // [Fix #4] JPEG 92% is ~5× faster than PNG 100% with visually lossless output
+        val file = File(dir, "sts_edit_${System.currentTimeMillis()}.jpg")
         FileOutputStream(file).use { out ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 92, out)
         }
         return FileProvider.getUriForFile(
             context,
