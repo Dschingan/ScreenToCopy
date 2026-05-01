@@ -9,20 +9,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="377d00e4-b5dd-423e-9556-05bc2faf96b6" name="Changes" comment="New Feature - Photo Editor">
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/action/EditIntentExecutor.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/action/EditIntentExecutor.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/engine/ClipboardEngine.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/engine/ClipboardEngine.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/engine/ZeroLatencyPipeline.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/engine/ZeroLatencyPipeline.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/observability/DebugOverlay.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/observability/DebugOverlay.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/observability/StsLogger.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/observability/StsLogger.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/selection/MotionSmoother.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/selection/MotionSmoother.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/selection/SelectionEngineView.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/selection/SelectionEngineView.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/selection/SpatialGridIndex.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/selection/SpatialGridIndex.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/service/OverlayService.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/service/OverlayService.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/service/STSAccessibilityService.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/screentocopy/core/service/STSAccessibilityService.kt" afterDir="false" />
-    </list>
+    <list default="true" id="377d00e4-b5dd-423e-9556-05bc2faf96b6" name="Changes" comment="New Feature - Photo Editor" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
