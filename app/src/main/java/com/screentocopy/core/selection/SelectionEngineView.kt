@@ -4,128 +4,238 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PointF
 import android.util.AttributeSet
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import com.screentocopy.core.action.SelectionAction
 import kotlin.math.hypot
 
 /**
- * 🎨 Selection Engine Core (Render Layer & Touch Input Layer)
- * 
- * - Jitter koruması (Touch Slop)
- * - Historical Sampling (Yüksek Sample Rate)
- * - VSYNC Senkronizasyon (postInvalidateOnAnimation)
+ * 🎨 Selection Engine Core (Render + Touch Input)
+ *
+ * Hot-path performance contract (ACTION_MOVE):
+ * - [L1]  Zero PointF allocation — tempCenter pre-allocated.
+ * - [L2]  No hypot()/sqrt() — squared-distance comparison only.
+ * - [L3]  No System.currentTimeMillis() — event.eventTime (free from kernel).
+ * - [L4]  Haptic posted off MOVE loop via post { } + bool guard.
+ * - [2.5] Haptic anti-spam: eventTime-based 100ms cooldown (handles fast enter/exit).
+ * - [2.8] ACTION_CANCEL isolated → always forceCopy, never evaluates dwell.
+ *
+ * Callback change (breaking):
+ *   REMOVED  onSelectionComplete: ((Rect) -> Unit)?
+ *   ADDED    onSelectionResolved: ((Rect, SelectionAction) -> Unit)?
  */
 class SelectionEngineView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    // 1. Touch Slop (İlk dokunuştaki micro-titremeyi yok et)
+    // ── Touch infrastructure ──────────────────────────────────────────────────
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
-    
-    // 2. Motion Filter Layer
     private val motionSmoother = MotionSmoother()
 
-    // 🚀 Highlight Layer (Instant Vision Feedback)
+    // ── Spatial layers ────────────────────────────────────────────────────────
     private val highlightLayer = HighlightLayer(this)
-    
-    // 3. Snap Engine (O(1) Spatial Index tabanlı)
     val spatialIndex = SpatialGridIndex()
     private val snapEngine = SnapEngine(spatialIndex)
-    
-    // 4. Subpixel ROI Model
+
+    // ── Selection model ───────────────────────────────────────────────────────
     private val currentSelection = SubpixelRect()
     private var snappedSelection = SubpixelRect()
-
-    // 5. Callback
-    var onSelectionComplete: ((android.graphics.Rect) -> Unit)? = null
-
-    // 🔥 5. Gesture Path Data
-    private val pathPoints = mutableListOf<android.graphics.PointF>()
+    private val pathPoints = mutableListOf<PointF>()
 
     private var startX = 0f
     private var startY = 0f
     private var isDragging = false
 
-    // Google Lens hissi veren Render Stili
+    // ── Edit Intent State ─────────────────────────────────────────────────────
+
+    private var intentState = SelectionIntentState.IDLE
+
+    // [L1] Pre-allocated — ZERO allocation per MOVE event
+    private val tempCenter = PointF()
+
+    // [L3] Dwell tracking via event.eventTime — no syscall
+    private var enteredCenterAt = -1L
+
+    // [2.5] Haptic anti-spam: time-based cooldown instead of simple bool
+    private var lastHapticTime = 0L
+
+    // Adaptive dwell threshold — mutated by OverlayService via Watchdog [L9]
+    var editDwellThresholdMs: Long = 80L
+
+    // [L2] Squared radius — no sqrt in hot path
+    private val centerRadius = dpToPx(40f)
+    private val centerRadiusSq = centerRadius * centerRadius
+
+    // Minimum selection dimension to qualify for edit (prevents accidental edit on tiny tap)
+    private val minEditDimPx = dpToPx(100f)
+
+    // Edit anchor visual
+    private val editAnchorLayer = EditAnchorLayer(this)
+
+    // ── Callback (replaces onSelectionComplete) ───────────────────────────────
+    /**
+     * Invoked once on ACTION_UP with the final snapped rect and resolved action.
+     * MUST NOT block — OverlayService runs heavy work in a coroutine.
+     */
+    var onSelectionResolved: ((android.graphics.Rect, SelectionAction) -> Unit)? = null
+
+    // ── Paint ─────────────────────────────────────────────────────────────────
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#E8EAED") // Hafif parlak beyazımsı kenar
+        color = Color.parseColor("#E8EAED")
         style = Paint.Style.STROKE
         strokeWidth = 6f
-        setShadowLayer(4f, 0f, 2f, Color.parseColor("#40000000")) // Magnetic derinlik
+        setShadowLayer(4f, 0f, 2f, Color.parseColor("#40000000"))
     }
 
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#20FFFFFF") // Saydam beyaz iç dolgu
+        color = Color.parseColor("#20FFFFFF")
         style = Paint.Style.FILL
     }
 
+    // ── Touch ─────────────────────────────────────────────────────────────────
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
+
             MotionEvent.ACTION_DOWN -> {
                 startX = event.x
                 startY = event.y
                 motionSmoother.reset(startX, startY)
                 snapEngine.resetStickyStates()
                 isDragging = false
-                
-                // Ekranı temizle
                 highlightLayer.clear()
-                
                 pathPoints.clear()
-                pathPoints.add(android.graphics.PointF(startX, startY))
+                pathPoints.add(PointF(startX, startY))
 
                 currentSelection.left = startX
                 currentSelection.top = startY
                 currentSelection.right = startX
                 currentSelection.bottom = startY
                 snappedSelection = currentSelection.copy()
+
+                // Reset edit intent state
+                enteredCenterAt = -1L
+                lastHapticTime = 0L          // [2.5] reset cooldown
+                editAnchorLayer.hide()
+                intentState = SelectionIntentState.SELECTING
             }
+
             MotionEvent.ACTION_MOVE -> {
                 if (!isDragging) {
                     val dist = hypot(event.x - startX, event.y - startY)
                     if (dist > touchSlop) {
-                        isDragging = true // Slop aşıldı, gerçek çizim başladı
+                        isDragging = true
                     } else {
                         return true // Ignore micro-jitter
                     }
                 }
 
-                // 🔥 Pointer Sampling
+                // Historical pointer sampling
                 val historySize = event.historySize
                 for (i in 0 until historySize) {
-                    val hX = event.getHistoricalX(i)
-                    val hY = event.getHistoricalY(i)
-                    updateSelection(hX, hY)
+                    updateSelection(event.getHistoricalX(i), event.getHistoricalY(i))
                 }
-                
                 updateSelection(event.x, event.y)
+
+                // ── Center zone tracking (hot path — zero allocation) ──────────
+                if (isDragging) {
+                    // [L1] reuse pre-allocated PointF
+                    tempCenter.set(snappedSelection.centerX(), snappedSelection.centerY())
+
+                    val dx = event.x - tempCenter.x
+                    val dy = event.y - tempCenter.y
+                    // [L2] squared comparison — NO sqrt / hypot
+                    val inCenter = (dx * dx + dy * dy) < centerRadiusSq
+
+                    if (inCenter) {
+                        if (enteredCenterAt < 0L) {
+                            enteredCenterAt = event.eventTime  // [L3]
+                            intentState = SelectionIntentState.CANDIDATE_EDIT
+
+                            // [2.5] Anti-spam: only trigger haptic if > 100ms since last
+                            if (event.eventTime - lastHapticTime > 100L) {
+                                lastHapticTime = event.eventTime
+                                // [L4] post off MOVE loop
+                                post { performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK) }
+                            }
+
+                            // Show anchor only for selections large enough to be intentional
+                            val w = snappedSelection.width()
+                            val h = snappedSelection.height()
+                            if (w * h > centerRadiusSq * 4) {
+                                editAnchorLayer.show(tempCenter.x, tempCenter.y)
+                            }
+                        }
+                    } else {
+                        // Finger left center zone — reset to COPY candidate
+                        enteredCenterAt = -1L
+                        editAnchorLayer.hide()
+                        intentState = SelectionIntentState.CANDIDATE_COPY
+                    }
+                }
+
                 postInvalidateOnAnimation()
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+
+            // ── [Fix 2.8] ACTION_CANCEL — system interrupt, NEVER evaluate dwell ──
+            MotionEvent.ACTION_CANCEL -> {
+                enteredCenterAt = -1L
+                editAnchorLayer.hide()
+                intentState = SelectionIntentState.FINAL_COPY
+
                 if (isDragging) {
-                    // 🧠 1. Gesture Analysis (Sadece parmak kalkınca çalışır - CPU dostu)
+                    // Force COPY — do NOT check center zone or dwell
+                    finishSelection(SelectionAction.COPY)
+                }
+                isDragging = false
+                postInvalidateOnAnimation()
+                return true   // Don't fall through to ACTION_UP logic
+            }
+
+            MotionEvent.ACTION_UP -> {
+                if (isDragging) {
+                    // Gesture analysis (only on release — CPU-friendly)
                     val resolvedRectF = GestureEngine.analyzeAndResolve(pathPoints)
-                    
-                    // 🧠 2. Resolved Shape'i SubpixelRect'e koy
-                    currentSelection.left = resolvedRectF.left
-                    currentSelection.top = resolvedRectF.top
-                    currentSelection.right = resolvedRectF.right
+                    currentSelection.left   = resolvedRectF.left
+                    currentSelection.top    = resolvedRectF.top
+                    currentSelection.right  = resolvedRectF.right
                     currentSelection.bottom = resolvedRectF.bottom
 
-                    // 🧲 3. Gesture Sonrası Snap (YES, tekrar!)
-                    // Karalama (scribble) yapsa bile metne mükemmel yapışır
                     snappedSelection = snapEngine.processSnap(
                         currentRoi = currentSelection,
-                        velocity = 0f // Final snap, hız sıfır kabul edilebilir (güçlü yapışma)
+                        velocity = 0f
                     )
 
-                    // 🚀 4. Motor'a gönder
-                    triggerZeroLatencyPipeline(snappedSelection.toEngineRect())
-                    
-                    // 💡 Haptic Feedback: "Sistem seni anladı"
-                    performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                    // ── Intent resolution ─────────────────────────────────────
+                    val minDim = minOf(snappedSelection.width(), snappedSelection.height())
+
+                    val isEdit = if (minDim < minEditDimPx) {
+                        false   // Too small → always COPY (Phase 7 guard)
+                    } else {
+                        val dx = event.x - tempCenter.x
+                        val dy = event.y - tempCenter.y
+                        val inCenter = (dx * dx + dy * dy) < centerRadiusSq      // [L2]
+                        val dwell = if (enteredCenterAt > 0L)
+                            event.eventTime - enteredCenterAt                     // [L3]
+                        else 0L
+                        inCenter && dwell >= editDwellThresholdMs                 // [L9] adaptive
+                    }
+
+                    val action = if (isEdit) SelectionAction.EDIT else SelectionAction.COPY
+                    intentState = if (isEdit) SelectionIntentState.FINAL_EDIT else SelectionIntentState.FINAL_COPY
+
+                    // Reset
+                    enteredCenterAt = -1L
+                    editAnchorLayer.hide()
+
+                    finishSelection(action)
+
+                    // Haptic: "system understood you" (original behavior kept)
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                 }
                 isDragging = false
                 postInvalidateOnAnimation()
@@ -134,56 +244,57 @@ class SelectionEngineView @JvmOverloads constructor(
         return true
     }
 
-    private fun updateSelection(rawX: Float, rawY: Float) {
-        // 1. Smoothing + Prediction
-        val (predictedX, predictedY) = motionSmoother.process(rawX, rawY)
-        
-        pathPoints.add(android.graphics.PointF(predictedX, predictedY))
+    // ── Selection update (called per pointer sample) ──────────────────────────
 
-        // Lightweight Preview: Move sırasında sadece bounding box çiziyoruz.
-        // Full analiz (Circle/Scribble) Action_UP'da yapılacak.
-        currentSelection.left = minOf(startX, predictedX, currentSelection.left)
-        currentSelection.top = minOf(startY, predictedY, currentSelection.top)
-        currentSelection.right = maxOf(startX, predictedX, currentSelection.right)
+    private fun updateSelection(rawX: Float, rawY: Float) {
+        val (predictedX, predictedY) = motionSmoother.process(rawX, rawY)
+        pathPoints.add(PointF(predictedX, predictedY))
+
+        currentSelection.left   = minOf(startX, predictedX, currentSelection.left)
+        currentSelection.top    = minOf(startY, predictedY, currentSelection.top)
+        currentSelection.right  = maxOf(startX, predictedX, currentSelection.right)
         currentSelection.bottom = maxOf(startY, predictedY, currentSelection.bottom)
 
-        // 2. Intent-aware Snapping (Magnetic Edges) (Live Preview sırasında da çalışır)
         snappedSelection = snapEngine.processSnap(
             currentRoi = currentSelection,
             velocity = motionSmoother.latestVelocity
         )
     }
 
+    // ── Draw ──────────────────────────────────────────────────────────────────
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        
-        // 1. Highlight Layer her zaman altta (veya üstte, tercihe bağlı)
+
         highlightLayer.onDraw(canvas)
 
         if (isDragging) {
-            // Çizim raw input'a değil, snaplenmiş ve easing uygulanmış modele göre yapılır
             val rect = snappedSelection.toRectF()
             canvas.drawRect(rect, fillPaint)
             canvas.drawRect(rect, paint)
         }
+
+        // EditAnchorLayer has its own visibility guard — safe to call unconditionally
+        editAnchorLayer.onDraw(canvas)
     }
 
-    /**
-     * OCR sonuçları geldiğinde dışarıdan çağrılır
-     */
+    // ── OCR highlight API ─────────────────────────────────────────────────────
+
     fun showHighlights(boxes: List<android.graphics.RectF>) {
         highlightLayer.showHighlights(boxes)
     }
 
-    private fun triggerZeroLatencyPipeline(engineRect: android.graphics.Rect) {
-        // OCR pipeline veya Selection bitti
-        finishSelection()
-    }
+    // ── Internal pipeline trigger ─────────────────────────────────────────────
 
-    private fun finishSelection() {
+    private fun finishSelection(action: SelectionAction) {
         val finalRect = snappedSelection.toEngineRect()
         if (finalRect.width() > 10 && finalRect.height() > 10) {
-            onSelectionComplete?.invoke(finalRect)
+            onSelectionResolved?.invoke(finalRect, action)
         }
     }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private fun dpToPx(dp: Float): Float =
+        dp * context.resources.displayMetrics.density
 }

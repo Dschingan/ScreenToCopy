@@ -29,4 +29,9 @@ data class SubpixelRect(
         ceil(right).toInt(),
         ceil(bottom).toInt()
     )
+
+    fun width(): Float = right - left
+    fun height(): Float = bottom - top
+    fun centerX(): Float = left + (right - left) / 2f
+    fun centerY(): Float = top + (bottom - top) / 2f
 }

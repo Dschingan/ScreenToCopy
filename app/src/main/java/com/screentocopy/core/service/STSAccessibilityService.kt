@@ -169,23 +169,32 @@ class STSAccessibilityService : AccessibilityService() {
         overlayView = SelectionEngineView(this)
         overlayView?.background = BitmapDrawable(resources, frozenBitmap)
         
-        overlayView?.onSelectionComplete = { rect ->
-            try {
-                val safeRect = android.graphics.Rect(
-                    rect.left.coerceAtLeast(0),
-                    rect.top.coerceAtLeast(0),
-                    rect.right.coerceAtMost(frozenBitmap.width),
-                    rect.bottom.coerceAtMost(frozenBitmap.height)
-                )
-                if (safeRect.width() > 0 && safeRect.height() > 0) {
-                    val cropped = Bitmap.createBitmap(frozenBitmap, safeRect.left, safeRect.top, safeRect.width(), safeRect.height())
-                    scope.launch {
-                        clipboardEngine.dispatchSmart(null, cropped)
-                        hideOverlay()
+        overlayView?.onSelectionResolved = { rect, action ->
+            hideOverlay()
+            scope.launch {
+                try {
+                    val safeRect = android.graphics.Rect(
+                        rect.left.coerceAtLeast(0),
+                        rect.top.coerceAtLeast(0),
+                        rect.right.coerceAtMost(frozenBitmap.width),
+                        rect.bottom.coerceAtMost(frozenBitmap.height)
+                    )
+                    if (safeRect.width() > 0 && safeRect.height() > 0) {
+                        val cropped = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                            Bitmap.createBitmap(frozenBitmap, safeRect.left, safeRect.top, safeRect.width(), safeRect.height())
+                        }
+                        kotlinx.coroutines.withContext(Dispatchers.IO) {
+                            clipboardEngine.dispatchSmart(null, cropped)
+                        }
+                        if (action == com.screentocopy.core.action.SelectionAction.EDIT) {
+                            launch {
+                                com.screentocopy.core.action.EditIntentExecutor(this@STSAccessibilityService).execute(cropped) {}
+                            }
+                        }
                     }
-                } else hideOverlay()
-            } catch (e: Exception) {
-                hideOverlay()
+                } catch (e: Exception) {
+                    Log.e("STSService", "Error in selection pipeline", e)
+                }
             }
         }
 

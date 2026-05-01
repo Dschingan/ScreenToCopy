@@ -29,6 +29,22 @@ class ServiceWatchdog(
         }
     }
 
+    /**
+     * [Phase 5] Structured event logging + ping.
+     * Called by OverlayService for EDIT_REQUEST / EDIT_FALLBACK events.
+     * Every event counts as a liveness ping — keeps the watchdog satisfied.
+     */
+    fun reportEvent(tag: String) {
+        Log.d("ServiceWatchdog", "WatchdogEvent: $tag")
+        ping()
+    }
+
+    /**
+     * [Phase 5] Inline health check — true when service is not HEALTHY.
+     * Used by OverlayService to gate edit execution.
+     */
+    fun isDegraded(): Boolean = _state.value != ServiceHealth.HEALTHY
+
     fun startMonitoring() {
         scope.launch(Dispatchers.Default) {
             while (isActive) {
