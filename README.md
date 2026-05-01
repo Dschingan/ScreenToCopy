@@ -48,7 +48,7 @@ The user is responsible for ensuring that their use of the application complies 
 1. Clone the repository.
 2. Open in Android Studio (Koala or newer recommended).
 3. Build and install the APK.
-4. Enable the **ScreenToCopy** Accessibility Service in your device settings.
+4. Enable the **ScreenToCopy** Accessibility Service and digital assistant in your device settings.
 
 ---
 
