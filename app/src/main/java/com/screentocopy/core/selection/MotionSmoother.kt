@@ -36,10 +36,15 @@ class MotionSmoother {
         // Yavaş hareket = daha fazla smoothing (alpha düşük) -> İnce titreşimler kesilir
         latestVelocity = velocity
 
+        // [BugFix] Alpha values rebalanced after [Fix #5] (eventTime-based dt).
+        // Old System.currentTimeMillis() code had dt≈1ms (inflated), which pushed velocity
+        // above 2.0 almost always → alpha stayed at 0.4 (light smoothing).
+        // Correct kernel dt values yield lower velocity readings → old alpha 0.15 caused
+        // extreme coordinate shrinkage. Raised to preserve true selection extents.
         val alpha = when {
-            velocity > 2.0f -> 0.4f
-            velocity > 0.5f -> 0.25f
-            else -> 0.15f
+            velocity > 2.0f -> 0.85f   // Fast drag: near-raw (was 0.40)
+            velocity > 0.5f -> 0.70f   // Medium: light smoothing (was 0.25)
+            else            -> 0.55f   // Slow/tap: gentle smoothing (was 0.15 — too aggressive)
         }
 
 

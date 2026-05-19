@@ -50,6 +50,13 @@ class SelectionEngineView @JvmOverloads constructor(
     private val pathXs = FloatArray(512)
     private val pathYs = FloatArray(512)
     private var pathCount = 0
+    // Raw (unsmoothed) path exclusively for GestureEngine.
+    // MotionSmoother shrinks coordinates (alpha 0.15–0.7), which causes GestureEngine's
+    // bounding box to be smaller than what the user visually selected. We track raw
+    // finger positions separately so gesture classification uses the true extents.
+    private val rawPathXs = FloatArray(512)
+    private val rawPathYs = FloatArray(512)
+    private var rawPathCount = 0
 
     private var startX = 0f
     private var startY = 0f
@@ -113,12 +120,18 @@ class SelectionEngineView @JvmOverloads constructor(
                 snapEngine.resetStickyStates()
                 isDragging = false
                 highlightLayer.clear()
-                // [Fix #3] reset float path buffer
+                // [Fix #3] reset float path buffers (smoothed + raw)
                 pathCount = 0
+                rawPathCount = 0
                 if (pathCount < pathXs.size) {
                     pathXs[pathCount] = startX
                     pathYs[pathCount] = startY
                     pathCount++
+                }
+                if (rawPathCount < rawPathXs.size) {
+                    rawPathXs[rawPathCount] = startX
+                    rawPathYs[rawPathCount] = startY
+                    rawPathCount++
                 }
 
                 currentSelection.left = startX
@@ -208,16 +221,24 @@ class SelectionEngineView @JvmOverloads constructor(
 
             MotionEvent.ACTION_UP -> {
                 if (isDragging) {
-                    // [Fix #3] Convert float arrays → List<PointF> once, only at ACTION_UP
-                    val pathPoints = ArrayList<PointF>(pathCount)
-                    for (i in 0 until pathCount) pathPoints.add(PointF(pathXs[i], pathYs[i]))
+                    // [Fix #3] Convert float arrays → List<PointF> once, only at ACTION_UP.
+                    // [BugFix] Use RAW path for GestureEngine — the smoothed path shrinks
+                    // bounding box coordinates (alpha 0.15–0.7) causing the captured bitmap
+                    // to be smaller than the selection the user visually saw.
+                    val rawPathPoints = ArrayList<PointF>(rawPathCount)
+                    for (i in 0 until rawPathCount) rawPathPoints.add(PointF(rawPathXs[i], rawPathYs[i]))
 
                     // Gesture analysis (only on release — CPU-friendly)
-                    val resolvedRectF = GestureEngine.analyzeAndResolve(pathPoints)
-                    currentSelection.left   = resolvedRectF.left
-                    currentSelection.top    = resolvedRectF.top
-                    currentSelection.right  = resolvedRectF.right
-                    currentSelection.bottom = resolvedRectF.bottom
+                    val resolvedRectF = GestureEngine.analyzeAndResolve(rawPathPoints)
+                    // [BugFix] Union with the accumulated bounding box instead of overwriting.
+                    // currentSelection was expanded by minOf/maxOf every MOVE sample, so it
+                    // already represents the true extents of the user's gesture. We must
+                    // never shrink it — only allow GestureEngine to refine inward (e.g.
+                    // circle/scribble modes that intentionally tighten the rect).
+                    currentSelection.left   = minOf(resolvedRectF.left,   currentSelection.left)
+                    currentSelection.top    = minOf(resolvedRectF.top,    currentSelection.top)
+                    currentSelection.right  = maxOf(resolvedRectF.right,  currentSelection.right)
+                    currentSelection.bottom = maxOf(resolvedRectF.bottom, currentSelection.bottom)
 
                     snappedSelection = snapEngine.processSnap(
                         currentRoi = currentSelection,
@@ -262,11 +283,17 @@ class SelectionEngineView @JvmOverloads constructor(
 
     private fun updateSelection(rawX: Float, rawY: Float, eventTime: Long) {
         val (predictedX, predictedY) = motionSmoother.process(rawX, rawY, eventTime)  // [Fix #5]
-        // [Fix #3] append to pre-allocated arrays, no PointF heap allocation
+        // [Fix #3] append smoothed coords to pre-allocated array (used for live preview)
         if (pathCount < pathXs.size) {
             pathXs[pathCount] = predictedX
             pathYs[pathCount] = predictedY
             pathCount++
+        }
+        // [BugFix] Record raw finger position for GestureEngine (no smoothing shrinkage)
+        if (rawPathCount < rawPathXs.size) {
+            rawPathXs[rawPathCount] = rawX
+            rawPathYs[rawPathCount] = rawY
+            rawPathCount++
         }
 
         currentSelection.left   = minOf(startX, predictedX, currentSelection.left)
